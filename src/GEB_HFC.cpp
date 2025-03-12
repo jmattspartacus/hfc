@@ -212,6 +212,9 @@ int main(int argc, char** argv) {
       bzipflag = true;
     } else if (!strval.compare("-o")) {
       arg++;
+      if(arg >= argc){
+        break;
+      }
       outfname = argv[arg];
       std::cout << "Using output: " << outfname << std::endl;
     } else {
