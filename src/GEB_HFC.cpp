@@ -218,7 +218,9 @@ int main(int argc, char** argv) {
       filename = argv[arg];
     }
   }
-
+  if (outfname.size() == 0){
+    outfname = "HFC.dat";
+  }
   if (pipeflag == true) {
     out = stdout;
   } else {
