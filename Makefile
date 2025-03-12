@@ -14,13 +14,13 @@ LIBS =
 
 OBJFILES = GEB_HFC.o HFC.o
 
-$(RUNFILE): GEB_HFC.cpp $(OBJFILES) 
+$(RUNFILE): src/GEB_HFC.cpp $(OBJFILES) 
 	$(CC) $(FLAG) $(OBJFILES) -o $(RUNFILE) $(LIBS) 
 
-GEB_HFC.o: GEB_HFC.cpp HFC.h
+GEB_HFC.o: src/GEB_HFC.cpp src/HFC.h
 	$(CC) $(FLAG) -c $<
 
-HFC.o: HFC.cpp HFC.h
+HFC.o: src/HFC.cpp src/HFC.h
 	$(CC) $(FLAG) -c $<
 
 

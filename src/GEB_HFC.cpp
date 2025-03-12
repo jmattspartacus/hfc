@@ -12,6 +12,8 @@
 #include "global.h"
 #include "HFC.h"
 
+
+
 #define SQR(x)         ((x)*(x))
 
 using namespace std;
@@ -64,7 +66,7 @@ void Mode3Event(char* cBuf, int len, Mode3event* mode3) {
   
   // 1st & 2nd word are 0xaaaa
   if((*wBuf != 0xaaaa) && (*(wBuf+1) != 0xaaaa)) {
-    cerr << "0xAAAA header missing" << endl;
+    std::cerr << "0xAAAA header missing" << endl;
     return;
   }
   wBuf+=2;
@@ -76,7 +78,7 @@ void Mode3Event(char* cBuf, int len, Mode3event* mode3) {
   
   mode3->length = (*wBuf & 0x07ff) * 2 + 2;
   if(mode3->length != len) {
-    cerr << "inconsistent mode3 buffer length "
+    std::cerr << "inconsistent mode3 buffer length "
 	 << "Geb Hdr: " << len << " wrds "
 	 << "Mode2: " << mode3->length << " wrds"
 	 <<endl;
@@ -137,14 +139,14 @@ void Mode3Event(char* cBuf, int len, Mode3event* mode3) {
     wBuf+=2;
   }
   
-  cerr << hex
+  std::cerr << hex
        << " LED: 0x" << mode3->LED_ts
        << " CFD: 0x" << mode3->CFD_ts
        << dec << endl;
 }
 
 void BrowseData(gebData header) {
-  cerr << "type:" << header.type 
+  std::cerr << "type:" << header.type 
        << " len: " << header.length
        << " ts: 0x" << hex << header.timestamp << dec
        << endl;
@@ -185,7 +187,7 @@ int main(int argc, char** argv) {
   signal(SIGPIPE, breakhandler);
 
   if(argc==1) {
-    cerr << argv[0] << " <flag: -p (pipeout) or -z (.gz input file)> <Input file>" << endl
+    std::cerr << argv[0] << " <flag: -p (pipeout) or -z (.gz input file)> <Input file>" << endl
 	 << "brings GRETINA Mode3 event file" << endl
 	 << "in proper sequence" << endl;
     exit(0);
@@ -198,38 +200,41 @@ int main(int argc, char** argv) {
   FILE *out = NULL;
 
   string filename;
-  while (argc > 1) {
-    if (!(strcmp(argv[1], "-p"))) {
-      argc--; argv++;
+  string outfname = "HFC.dat";
+  std::cout << argc << std::endl;
+  for(int arg = 1; arg < argc; arg++) {
+    std::string strval = std::string(argv[arg]);
+    if (!strval.compare("-p")) {
       pipeflag = true;
-    } else if (!(strcmp(argv[1], "-z"))) {
-      argc--; argv++;
+    } else if (!strval.compare("-z")) {
       zipflag = true;
-    } else if (!(strcmp(argv[1], "-bz"))) {
-      argc--; argv++;
+    } else if (!strval.compare("-bz")) {
       bzipflag = true;
+    } else if (!strval.compare("-o")) {
+      arg++;
+      outfname = argv[arg];
+      std::cout << "Using output: " << outfname << std::endl;
     } else {
-      filename = argv[1];
-      argc--; argv++;
+      filename = argv[arg];
     }
   }
 
   if (pipeflag == true) {
     out = stdout;
   } else {
-    out = fopen("HFC.dat", "wb");
+    out = fopen(outfname.c_str(), "wb");
   }
   
   if (!zipflag && !bzipflag) {
     in = fopen(filename.c_str(), "rb");
     if (!in) {
       if (!pipeflag) {
-	cerr << "HFC: cannot open file " << filename.c_str() << endl;
+	      std::cerr << "HFC: cannot open file " << filename.c_str() << endl;
       }
       return 1;
     } else {
       if (!pipeflag) {
-	cout << "HFC: opened file " << filename.c_str() << endl;
+	      cout << "HFC: opened file " << filename.c_str() << endl;
       }
     }
   } else if (zipflag && !bzipflag) {
@@ -237,7 +242,7 @@ int main(int argc, char** argv) {
     in = popen(zfilename.c_str(), "r");
     if (!in) {
       if (!pipeflag) {
-	cerr << "HFC: cannot open file " << zfilename.c_str() << endl;
+	      std::cerr << "HFC: cannot open file " << zfilename.c_str() << endl;
       }
       return 1;
     } else {
@@ -249,7 +254,7 @@ int main(int argc, char** argv) {
     in = popen(zfilename.c_str(), "r");
     if (!in) {
       if (!pipeflag) {
-	cerr << "HFC: cannot open file " << zfilename.c_str() << endl;
+	std::cerr << "HFC: cannot open file " << zfilename.c_str() << endl;
       }
       return 1;
     } else {
@@ -274,10 +279,10 @@ int main(int argc, char** argv) {
     totread += read + sizeof(struct gebData);
     if (read != aGeb.length) {
       if (!pipeflag) {
-	cerr << aGeb.length << " bytes expected but"
-	     << read << " bytes read. Bailing out"
-	     << endl;
-	cerr.flush();
+	      std::cerr << aGeb.length << " bytes expected but"
+	           << read << " bytes read. Bailing out"
+	           << endl;
+	      std::cerr.flush();
       }
       break;
     }
@@ -285,15 +290,15 @@ int main(int argc, char** argv) {
     EvtCount++;
 		
     if((EvtCount % 200)==0 && !pipeflag) {
-      cerr << "Event " << EvtCount
-	   << " read:" << read
-	   << " total read:" << totread/1000000
-	   << " Mb \r";
-      cerr.flush();
+      std::cerr << "Event " << EvtCount
+	      << " read:" << read
+	      << " total read:" << totread/1000000
+	      << " Mb \r";
+      std::cerr.flush();
     }
     
 #if(0)
-    cerr << "Event:" << EvtCount 
+    std::cerr << "Event:" << EvtCount 
 	 << " #data:" << read
 	 << " geb:" << sizeof(struct gebData)
 	 << " total bytes read: " << totread
@@ -306,7 +311,7 @@ int main(int argc, char** argv) {
       if(!hfc_list.add(aGeb, cBuf) && success) {
 	success = false;
 	if (!pipeflag) {
-	  cerr << "HFC: adding event in HFC failed"
+	  std::cerr << "HFC: adding event in HFC failed"
 	       << endl;
 	  }
       }
@@ -326,7 +331,7 @@ int main(int argc, char** argv) {
 	  
 	  if(nBytes < 0) {
 	    if (!pipeflag) {
-	      cerr << "HFC: nBytes negative!!"
+	      std::cerr << "HFC: nBytes negative!!"
 		   << endl;
 	    }
 	    exit(0);
@@ -340,7 +345,7 @@ int main(int argc, char** argv) {
       if(!hfc_list.add(aGeb, cBuf) && success) {
 	success = false;
 	if (!pipeflag) {
-	  cerr << "HFC: adding event in HFC failed"
+	  std::cerr << "HFC: adding event in HFC failed"
 	       << endl;
 	}
       }
@@ -353,7 +358,7 @@ int main(int argc, char** argv) {
       if(!hfc_list.add(aGeb, cBuf) && success) {
 	success = false;
 	if (!pipeflag) {
-	  cerr << "HFC: adding event in HFC failed"
+	  std::cerr << "HFC: adding event in HFC failed"
 	       << endl;
 	}
       }
@@ -363,7 +368,7 @@ int main(int argc, char** argv) {
       if(!hfc_list.add(aGeb, cBuf) && success) {
 	success = false;
 	if (!pipeflag) {
-	  cerr << "HFC: adding event in HFC failed"
+	  std::cerr << "HFC: adding event in HFC failed"
 	       << endl;
 	}
       }
@@ -373,7 +378,7 @@ int main(int argc, char** argv) {
       if(!hfc_list.add(aGeb, cBuf) && success) {
 	success = false;
 	if (!pipeflag) {
-	  cerr << "HFC: adding event in HFC failed"
+	  std::cerr << "HFC: adding event in HFC failed"
 	       << endl;
 	}
       }	
@@ -383,7 +388,7 @@ int main(int argc, char** argv) {
       if(!hfc_list.add(aGeb, cBuf) && success) {
 	success = false;
 	if (!pipeflag) {
-	  cerr << "HFC: adding event in HFC failed"
+	  std::cerr << "HFC: adding event in HFC failed"
 	       << endl;
 	}
       }
@@ -393,7 +398,7 @@ int main(int argc, char** argv) {
       if(!hfc_list.add(aGeb, cBuf) && success) {
 	success = false;
 	if (!pipeflag) {
-	  cerr << "HFC: adding event in HFC failed"
+	  std::cerr << "HFC: adding event in HFC failed"
 	       << endl;
 	}
       }
@@ -403,7 +408,7 @@ int main(int argc, char** argv) {
       if(!hfc_list.add(aGeb, cBuf) && success) {
 	success = false;
 	if (!pipeflag) {
-	  cerr << "HFC: adding event in HFC failed"
+	  std::cerr << "HFC: adding event in HFC failed"
 	       << endl;
 	}
       }
@@ -413,7 +418,7 @@ int main(int argc, char** argv) {
       if(!hfc_list.add(aGeb, cBuf) && success) {
 	success = false;
 	if (!pipeflag) {
-	  cerr << "HFC: adding event in HFC failed"
+	  std::cerr << "HFC: adding event in HFC failed"
 	       << endl;
 	}
       }
@@ -423,7 +428,7 @@ int main(int argc, char** argv) {
       if(!hfc_list.add(aGeb, cBuf) && success) {
 	success = false;
 	if (!pipeflag) {
-	  cerr << "HFC: adding event in HFC failed"
+	  std::cerr << "HFC: adding event in HFC failed"
 	       << endl;
 	}
       }
@@ -433,7 +438,7 @@ int main(int argc, char** argv) {
       if(!hfc_list.add(aGeb, cBuf) && success) {
 	success = false;
 	if (!pipeflag) {
-	  cerr << "HFC: adding event in HFC failed"
+	  std::cerr << "HFC: adding event in HFC failed"
 	       << endl;
 	}
       }
@@ -443,7 +448,7 @@ int main(int argc, char** argv) {
       if(!hfc_list.add(aGeb, cBuf) && success) {
 	success = false;
 	if (!pipeflag) {
-	  cerr << "HFC: adding event in HFC failed"
+	  std::cerr << "HFC: adding event in HFC failed"
 	       << endl;
 	}
       }
@@ -453,7 +458,7 @@ int main(int argc, char** argv) {
       if(!hfc_list.add(aGeb, cBuf) && success) {
 	success = false;
 	if (!pipeflag) {
-	  cerr << "HFC: adding event in HFC failed"
+	  std::cerr << "HFC: adding event in HFC failed"
 	       << endl;
 	}
       }
@@ -463,7 +468,7 @@ int main(int argc, char** argv) {
       if(!hfc_list.add(aGeb, cBuf) && success) {
 	success = false;
 	if (!pipeflag) {
-	  cerr << "HFC: adding event in HFC failed"
+	  std::cerr << "HFC: adding event in HFC failed"
 	       << endl;
 	}
       }
@@ -474,7 +479,7 @@ int main(int argc, char** argv) {
       if(!hfc_list.add(aGeb, cBuf) && success) {
 	success = false;
 	if (!pipeflag) {
-	  cerr << "HFC: adding event in HFC failed"
+	  std::cerr << "HFC: adding event in HFC failed"
 	       << endl;
 	}
       }
@@ -484,7 +489,7 @@ int main(int argc, char** argv) {
       if(!hfc_list.add(aGeb, cBuf) && success) {
 	success = false;
 	if (!pipeflag) {
-	  cerr << "HFC: adding event in HFC failed"
+	  std::cerr << "HFC: adding event in HFC failed"
 	       << endl;
 	}
       }
@@ -493,7 +498,7 @@ int main(int argc, char** argv) {
     default:
       {
 	if (!pipeflag) {
-	  cerr << "HFC: Unknown packet type " << aGeb.type
+	  std::cerr << "HFC: Unknown packet type " << aGeb.type
 	       << " ... HFC: skipping that one" << endl;
 	}
       }
@@ -504,18 +509,18 @@ int main(int argc, char** argv) {
   }
   
   if (!pipeflag) {
-    cerr << "HFC: calling flush" << endl; cerr.flush();
+    std::cerr << "HFC: calling flush" << endl; std::cerr.flush();
   }
   hfc_list.flush();
   hfc_list.printstatus();
   
   if (!pipeflag) {
-    cerr << "HFC: closing files" << endl; cerr.flush();
+    std::cerr << "HFC: closing files" << endl; std::cerr.flush();
   }
   fclose(in);
   fclose(out);
   if (!pipeflag) {
-    cerr << "HFC: done" << endl; cerr.flush(); 
+    std::cerr << "HFC: done" << endl; std::cerr.flush(); 
   }
 }
 
