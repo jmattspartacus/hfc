@@ -19,3 +19,5 @@ For "very old" timestamps, these will now be located at the end of the output fi
 # Disclaimer
 
 I make no claim to ownership of this code, but if something here is broken, I am willing to maintain it. 
+
+From what I can tell, the original version comes from here https://github.com/GRETINA-LBNL/gretina-unpack 
