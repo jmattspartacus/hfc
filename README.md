@@ -10,6 +10,12 @@ To build HFC, run `make`, no external dependencies are needed, aside from C++ de
 
 This program currently will not compile on Windows, I would suggest using WSL if you cannot use a Unix/Linux based operating system. 
 
+# Difference with historic HFC program
+
+The version here uses a priority queue instead of a linked list. While it will use somewhat more memory, it runs about 3 times faster for large input files. 
+
+For "very old" timestamps, these will now be located at the end of the output file. They are no longer discarded as they were with the old output files.
+
 # Disclaimer
 
 I make no claim to ownership of this code, but if something here is broken, I am willing to maintain it. 
