@@ -3,6 +3,8 @@
 
 #include <iostream>
 #include <list>
+#include <queue>
+
 #include "global.h"
 
 using namespace std;
@@ -57,6 +59,23 @@ struct gebData
   int type;
   int length; // payload in bytes
   long long timestamp;
+
+  int operator<(gebData &other){
+    return timestamp < other.timestamp;
+  };
+
+  int operator>(gebData &other){
+    return timestamp > other.timestamp;
+  };
+
+  int operator<=(gebData &other){
+    return timestamp <= other.timestamp;
+  };
+  
+  int operator==(gebData &other){
+    return timestamp == other.timestamp;
+  };
+
 };
 
 
@@ -64,6 +83,30 @@ struct HFC_item
 {
   gebData geb;
   BYTE*  data;
+
+  int operator< (HFC_item &other){
+    return geb < other.geb;
+  }
+
+  int operator> (HFC_item &other){
+    return geb > other.geb;
+  }
+
+  int operator<= (HFC_item &other){
+    return geb <= other.geb;
+  }
+
+  int operator== (HFC_item &other){
+    return geb == other.geb;
+  }
+
+};
+// Custom comparator for priority queue
+struct MinHeapSortHFCptr {
+  bool operator()(HFC_item *a, HFC_item *b)
+  {
+    return (*a) > (*b);
+  }
 };
 
 
@@ -74,6 +117,13 @@ class HFC
   int m_memdepth;
   FILE *m_file;
   int m_evt;
+
+  /// @brief minheap priority queue that we use to maintain time ordering of the events.
+  /// @details pq is a priority queue used to sort the events by timestamp. The minimum timestamp is guaranteed to be first event in the queue.
+  std::priority_queue<HFC_item *, std::vector<HFC_item *>, MinHeapSortHFCptr> pq;
+  
+  /// @brief How many bytes are waiting to be written. The program writes 9MB of the queue when 10MB of events are waiting.
+  long long waiting_writes = 0;
 
   list<HFC_item*> m_HFClist;
   list<HFC_item*>::iterator m_HFClast_it;

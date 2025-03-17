@@ -37,7 +37,9 @@ void HFC::init(int num, FILE* out) {
 // pretty late according its timestamp.
 
 bool HFC::insert(HFC_item* hfc) {
-#define HFCITEMISDEEP 100
+  pq.push(hfc);
+  return true;
+  #define HFCITEMISDEEP 100
   int cts=0;
 
   list<HFC_item*>::iterator HFC_it = m_HFClist.end();
@@ -121,10 +123,24 @@ bool HFC::add(gebData aGeb, BYTE* data) {
   HFC_item* hfc;
   hfc = (HFC_item*) new HFC_item;
   hfc->geb = aGeb;
+  waiting_writes += (aGeb.length) + 16;
 
   hfc->data = (BYTE*) new BYTE [hfc->geb.length * sizeof(BYTE)];
   memcpy(hfc->data, data, hfc->geb.length * sizeof(BYTE));
-
+  // if we're waiting for more than 10MB of writes, flush
+  // till 1MB waiting
+  if(waiting_writes > 10000000){
+    while(waiting_writes > 1000000){
+      HFC_item *item = pq.top();
+      pq.pop();
+      waiting_writes -= (item->geb.length) + 16;
+      writeItem(item);
+      delete item->data;
+      delete item;
+    }
+  }
+  pq.push(hfc);
+  return true;
   // now storing the pointer in HFC_list
 
   // You DON'T want to use
@@ -189,21 +205,32 @@ bool HFC::writeItem(HFC_item* hfc) {
   if(m_file) {
     fwrite(&(hfc->geb), sizeof(gebData), 1, m_file);
     fwrite(hfc->data, sizeof(BYTE), hfc->geb.length, m_file);
-    fflush(stdout);
   }
 
   return true;
 }
 
 void HFC::flush() {
-  list<HFC_item*>::iterator HFC_it = m_HFClist.begin();
-
-  while(HFC_it != m_HFClist.end()) {
-    writeItem(*HFC_it);
-    delete (*HFC_it)->data;
-    delete *HFC_it;
-    HFC_it = m_HFClist.erase(HFC_it);
+  //list<HFC_item*>::iterator HFC_it = m_HFClist.begin();
+  while(pq.size() > 0){
+    HFC_item *item = pq.top();
+    if(item == nullptr){
+      continue;
+    }
+    pq.pop();
+    if(item->data != nullptr){
+      writeItem(item);
+      delete item->data;
+    }
+    delete item;
   }
+  fflush(stdout);
+  // while(HFC_it != m_HFClist.end()) {
+  //   writeItem(*HFC_it);
+  //   delete (*HFC_it)->data;
+  //   delete *HFC_it;
+  //   HFC_it = m_HFClist.erase(HFC_it);
+  // }
 }
 
 void HFC::printstatus() {
