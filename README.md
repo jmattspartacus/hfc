@@ -6,7 +6,7 @@ I wanted to make this publicly available without searching through other reposit
 
 # Building
 
-To build HFC, run `make`, no external dependencies are needed, aside from C++ development tools. 
+To build HFC, run `make`, aside from C++ development tools, development headers and shared libs for the [zlib](https://www.zlib.net/) and [bzip2](https://sourceware.org/bzip2/) compression libraries need to be available on the system path. 
 
 This program currently will not compile on Windows, I would suggest using WSL if you cannot use a Unix/Linux based operating system. 
 

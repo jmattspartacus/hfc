@@ -4,13 +4,13 @@ GRROOT_DIR := $(shell if [ -z $(GRROOT_DIR) ]; then echo "../.."; else echo $(GR
 LIB_DIR = $(shell if [ -z $(GRROOT_LIBDIR) ]; then echo "$(GRROOT_DIR)/lib/lib32"; else echo $(GRROOT_LIBDIR); fi)
 BIN_DIR = $(shell if [ -z $(GRROOT_BINDIR) ]; then echo "$(GRROOT_DIR)/bin/bin32"; else echo $(GRROOT_BINDIR); fi)
 
-FLAG =  -O3 -g
+FLAG =  -O3
 MFILE_LIB = 
 RUNFILE = GEB_HFC
 INSTALLDIR=${HOME}/.local/bin/
 
 INCLUDE =
-LIBS = 
+LIBS = -Wl,--no-as-needed -lz -lbz2
 
 OBJFILES = GEB_HFC.o HFC.o
 
