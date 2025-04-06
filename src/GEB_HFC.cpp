@@ -8,7 +8,7 @@
 #include <fcntl.h>
 
 #include <signal.h>
-#include<unordered_map>
+#include <unordered_map>
 #include <zlib.h>
 #include <bzlib.h>
 
@@ -22,12 +22,12 @@
 using namespace std;
 
 struct Fhandle{
-  std::string m_fpath;
-  FILE *m_ptr;
-  gzFile m_gzhandle;
-  BZFILE *m_bzhandle;
-  int m_ftype;
-  bool m_is_open;
+  std::string m_fpath = "nil";
+  FILE *m_ptr = nullptr;
+  gzFile m_gzhandle = nullptr;
+  BZFILE *m_bzhandle = nullptr;
+  int m_ftype = -1;
+  bool m_is_open = false;
   Fhandle(){}
 
   bool open(const std::string &fpath, int ftype, const std::string &fmode){
@@ -73,7 +73,7 @@ struct Fhandle{
   }
 
 
-  size_t read(void *buf, int size){
+  size_t read(void *__restrict__ buf, int size){
     if(!m_is_open){
       return false;
     }
@@ -81,7 +81,7 @@ struct Fhandle{
     size_t bytes_read = 0;
     switch(m_ftype){
       case 0: // standard file_ptr
-        bytes_read = fread(&buf, size, 1, m_ptr);
+        bytes_read = fread(buf, 1, size, m_ptr);
         break;
       case 1:
         bytes_read = gzread(m_gzhandle, buf, size);
@@ -90,7 +90,7 @@ struct Fhandle{
         bytes_read = BZ2_bzread(m_bzhandle, buf, size);
         break;
       case 3: // stdin
-        bytes_read = fread(&buf, size, 1, stdin);
+        bytes_read = fread(buf, 1, size, stdin);
         break;
       default:
         break;
@@ -98,7 +98,7 @@ struct Fhandle{
     return bytes_read;
   }
 
-  bool write(void *buf, size_t size){
+  bool write(void *__restrict__ buf, size_t size){
     if(!m_is_open){
       std::cout << "tried to write to closed file!" << std::endl;
       return false;
@@ -107,7 +107,7 @@ struct Fhandle{
     //fread(&aGeb, sizeof(struct gebData), 1, in)
     switch(m_ftype){
       case 0: // standard file_ptr
-        bytes_written = fwrite(&buf, size, 1, m_ptr);
+        bytes_written = fwrite(buf, 1, size, m_ptr);
         break;
       case 1:
         bytes_written = gzwrite(m_gzhandle, buf, size);
@@ -116,7 +116,7 @@ struct Fhandle{
         bytes_written = BZ2_bzwrite(m_bzhandle, buf, size);
         break;
       case 3: //stdout
-        bytes_written = fwrite(&buf, size, 1, m_ptr);
+        bytes_written = fwrite(buf, 1, size, m_ptr);
         break;
       default:
         break;
@@ -384,23 +384,29 @@ int main(int argc, char** argv) {
   in.open(filename,inf_type,"rb");
   // if it's piped, it ignores the other info
   out.open(outfname,outf_type,"wb");
-  if(!out.m_is_open){
+  if(!out.m_is_open || !in.m_is_open){
     exit(1);
   }
   long long totread = 0;
-  int read;
+  size_t read;
   int EvtCount=0;
   BYTE cBuf[8*16382];
   gebData aGeb;
   //HFC hfc_list(50*8192, out);
   // 972: strange mode 2 with mem depth 40*8192 needed
+
   // how many bytes are waiting to write
   long long waiting_writes = 0;
 
   std::priority_queue<HFC_item *, std::vector<HFC_item *>, MinHeapSortHFCptr> pq;
   bool success=true;
-  while (in.read(&aGeb, sizeof(struct gebData)) && !gotsignal) {
-
+  unsigned long long badevt = 0;
+  while (in.read(&aGeb, sizeof(gebData)) && !gotsignal) {
+    if(aGeb.type < 1 || aGeb.type > 50 || aGeb.length > 8192){
+      std::cout << "bad evt with type " << aGeb.type << " length: " << aGeb.length << std::endl; 
+      badevt++;
+      continue;
+    }
     read = in.read(cBuf, aGeb.length);
     totread += read + sizeof(struct gebData);
     if (read != aGeb.length) {
@@ -417,7 +423,8 @@ int main(int argc, char** argv) {
       std::cerr << "Event " << EvtCount
         << " read:" << read
         << " total read:" << totread/1000000
-        << " Mb \r";
+        << " Mb " 
+        << " Bad events: " << badevt << "\r";
       std::cerr.flush();
     }
     // flush the first 99MB of data
