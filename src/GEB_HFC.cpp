@@ -451,6 +451,8 @@ int main(int argc, char** argv) {
   std::priority_queue<HFC_item *, std::vector<HFC_item *>, MinHeapSortHFCptr> pq;
   bool success=true;
   unsigned long long badevt = 0;
+  long long last_written_timestamp = 0;
+  unsigned long long timestamps_out_of_order = 0;
   unsigned long long total_written = 0;
   while (in.read(&aGeb, sizeof(gebData)) && !gotsignal) {
     if(aGeb.type < 1 || aGeb.type > 50 || aGeb.length > 8192){
@@ -459,6 +461,10 @@ int main(int argc, char** argv) {
       continue;
     }
     read = in.read(cBuf, aGeb.length);
+    if(aGeb.timestamp < last_written_timestamp){
+      timestamps_out_of_order++;
+    }
+    
     totread += read + sizeof(struct gebData);
     if (read != aGeb.length) {
       if (!pipeflag) {
@@ -500,6 +506,7 @@ int main(int argc, char** argv) {
         total_written  += (item->geb.length) + 16;
         out.write(&(item->geb), sizeof(gebData));
         out.write(item->data, item->geb.length);
+        last_written_timestamp = item->geb.timestamp;
         delete item->data;
         delete item;
       }
@@ -751,6 +758,9 @@ int main(int argc, char** argv) {
   out.close();
   if (!pipeflag) {
     std::cerr << "HFC: done" << endl; std::cerr.flush(); 
+    if(timestamps_out_of_order > 0){
+      std::cout << "Out of order timestamps: " << timestamps_out_of_order << " of " << EvtCount << std::endl;
+    }
     double space_ratio = 1.0 - ((double)(total_written) / (double)(totread));
     if(crop_geb){
       std::cout << "Wrote " << total_written / 1000000 << " MB and Read " <<  totread/1000000 << " MB Saved " << space_ratio * 100.0 << "% by cropping" << std::endl;
