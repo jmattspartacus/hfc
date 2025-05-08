@@ -373,7 +373,7 @@ int main(int argc, char** argv) {
   Fhandle in;
   Fhandle out;
 
-  string filename;
+  string filename = "NONE";
   string outfname = "HFC.dat";
   int input_ftype = 0;
   bool crop_geb = false;
@@ -396,7 +396,10 @@ int main(int argc, char** argv) {
       }
       outfname = argv[arg];
       std::cout << "Using output: " << outfname << std::endl;
-    } else {
+    } else if (!filename.compare("NONE")) {
+      // the first argument without
+      // a flag becomes the output file
+      // you should it be the last
       filename = argv[arg];
     }
   }
