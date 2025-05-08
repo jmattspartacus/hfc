@@ -20,6 +20,27 @@
 #define SQR(x)         ((x)*(x))
 
 using namespace std;
+// decomposed mode 1 data is type 3
+// mode 1 is the more complex tracked data
+const int GEB_MODE_1_DECOMP=3;
+
+// This is the size of the payload before the interaction points for mode 3 events
+const int GEB_MODE_1_SIZE_BEFORE_INTPT=32;
+
+// used for cropping mode 3 geb events when this is wanted
+// this is the size of each interaction
+const int GEB_MODE_1_INTPT_SIZE_BYTES=36;
+
+// decomposed mode 2 data is type 1
+// mode 2 is the simpler untracked data type
+const int GEB_MODE_2_DECOMP=1;
+
+// used for cropping mode 2 geb events when this is wanted
+// this is the size of each interaction
+const int GEB_MODE_2_INTPT_SIZE_BYTES=24;
+
+// This is the size of the payload before the interaction points for mode 2 events
+const int GEB_MODE_2_SIZE_BEFORE_INTPT=80;
 
 struct Fhandle{
   std::string m_fpath = "nil";
@@ -312,6 +333,27 @@ int HFC_mode3(BYTE* cBuf, HFC* hfc_list) {
   return (mode3_len + 4); // 0xaaaa 0xaaaa not counted in mode3_len
 }
 
+void CropGeb(HFC_item *evt){
+  
+  if (evt->geb.type == GEB_MODE_2_DECOMP){
+    int num_int_pts = *reinterpret_cast<int *>((char *)evt->data + 8);
+    //std::cout << "Num int pts " << num_int_pts << std::endl;
+    size_t new_payload_length = + num_int_pts * GEB_MODE_2_INTPT_SIZE_BYTES;
+    // chop off everything after the payload that's there
+    evt->data = (BYTE *)realloc(evt->data, new_payload_length);
+    evt->geb.length = new_payload_length;
+  } else if (evt->geb.type == GEB_MODE_1_DECOMP){
+    int num_det = *reinterpret_cast<int *>((char *)evt->data + 4);
+    //std::cout << "Num det " << num_det << std::endl;
+    size_t new_payload_length = num_det * GEB_MODE_1_INTPT_SIZE_BYTES;
+    // chop off everything after the payload that's there
+    evt->data = (BYTE *)realloc(evt->data, new_payload_length);
+    evt->geb.length = new_payload_length;
+  }
+  // can't effectively crop other event types unless we know something about their structure
+}
+
+
 int main(int argc, char** argv) {
 
   gotsignal = 0;
@@ -334,7 +376,7 @@ int main(int argc, char** argv) {
   string filename;
   string outfname = "HFC.dat";
   int input_ftype = 0;
-  std::cout << argc << std::endl;
+  bool crop_geb = false;
   for(int arg = 1; arg < argc; arg++) {
     std::string strval = std::string(argv[arg]);
     if (!strval.compare("-p")) {
@@ -345,6 +387,8 @@ int main(int argc, char** argv) {
       zipflag = true;
     } else if (!strval.compare("-bz")) {
       bzipflag = true;
+    } else if (!strval.compare("-c")){
+      crop_geb = true;
     } else if (!strval.compare("-o")) {
       arg++;
       if(arg >= argc){
@@ -355,6 +399,9 @@ int main(int argc, char** argv) {
     } else {
       filename = argv[arg];
     }
+  }
+  if(crop_geb){
+    std::cout << "Cropping geb events!" << std::endl;
   }
   int outf_type = 0;
   int inf_type = 0;
@@ -401,6 +448,7 @@ int main(int argc, char** argv) {
   std::priority_queue<HFC_item *, std::vector<HFC_item *>, MinHeapSortHFCptr> pq;
   bool success=true;
   unsigned long long badevt = 0;
+  unsigned long long total_written = 0;
   while (in.read(&aGeb, sizeof(gebData)) && !gotsignal) {
     if(aGeb.type < 1 || aGeb.type > 50 || aGeb.length > 8192){
       std::cout << "bad evt with type " << aGeb.type << " length: " << aGeb.length << std::endl; 
@@ -427,26 +475,33 @@ int main(int argc, char** argv) {
         << " Bad events: " << badevt << "\r";
       std::cerr.flush();
     }
+    HFC_item* hfc;
+    hfc = (HFC_item*) new HFC_item;
+    hfc->geb = aGeb;
+
+    hfc->data = (BYTE*) new BYTE [hfc->geb.length * sizeof(BYTE)];
+    memcpy(hfc->data, cBuf, hfc->geb.length * sizeof(BYTE));
+    
+    if(crop_geb){
+      CropGeb(hfc);
+    }
+    waiting_writes += (hfc->geb.length) + 16;
+    pq.push(hfc);
+
     // flush the first 99MB of data
     if(waiting_writes > 100000000){
       while(waiting_writes > 1000000){
         HFC_item *item = pq.top();
         pq.pop();
         waiting_writes -= (item->geb.length) + 16;
+        total_written  += (item->geb.length) + 16;
         out.write(&(item->geb), sizeof(gebData));
         out.write(item->data, item->geb.length);
         delete item->data;
         delete item;
       }
     }
-    HFC_item* hfc;
-    hfc = (HFC_item*) new HFC_item;
-    hfc->geb = aGeb;
-    waiting_writes += (aGeb.length) + 16;
 
-    hfc->data = (BYTE*) new BYTE [hfc->geb.length * sizeof(BYTE)];
-    memcpy(hfc->data, cBuf, hfc->geb.length * sizeof(BYTE));
-    pq.push(hfc);
 
     continue;
 #if(0)
@@ -693,6 +748,10 @@ int main(int argc, char** argv) {
   out.close();
   if (!pipeflag) {
     std::cerr << "HFC: done" << endl; std::cerr.flush(); 
+    double space_ratio = 1.0 - ((double)(total_written) / (double)(totread));
+    if(crop_geb){
+      std::cout << "Wrote " << total_written / 1000000 << " MB and Read " <<  totread/1000000 << " MB Saved " << space_ratio * 100.0 << "% by cropping" << std::endl;
+    }
   }
 }
 
