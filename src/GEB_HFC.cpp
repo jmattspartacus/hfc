@@ -361,6 +361,14 @@ void CropGeb(HFC_item *evt){
 }
 
 
+void PrintUsageString(char** argv){
+  std::cerr << "Usage: " << argv[0] << " [-o outputfile.dat[.gz or .bz] [-c] [-t time window in seconds ] inputfile.dat[.gz or .bz]]" << std::endl
+    << "time sorts GEB event built files" << std::endl
+    << "\t-c flag: GRETINA events will be cropped to remove zero padding" << std::endl
+    << "\t-t arg: must be a positive number, ex [ -t 1.01 ]" << std::endl
+    << "\t-o arg: must be a file with the .dat, .dat.gz or .dat.bz extensions" << std::endl;
+}
+
 int main(int argc, char** argv) {
 
   gotsignal = 0;
@@ -368,11 +376,7 @@ int main(int argc, char** argv) {
   signal(SIGPIPE, breakhandler);
 
   if(argc==1) {
-    std::cerr << "Usage: " << argv[0] << " [-o outputfile.dat[.gz or .bz] [-c] [-t time window in seconds ] inputfile.dat[.gz or .bz]]" << std::endl
-    << "time sorts GEB event built files" << std::endl
-    << "\t-c flag: GRETINA events will be cropped to remove zero padding" << std::endl
-    << "\t-t arg: must be a positive number, ex [ -t 1.01 ]" << std::endl
-    << "\t-o arg: must be a file with the .dat, .dat.gz or .dat.bz extensions" << std::endl;
+    PrintUsageString(argv);
     exit(0);
   }
   std::unordered_map<int, std::string> type_to_str = {
@@ -412,7 +416,10 @@ int main(int argc, char** argv) {
   bool crop_geb = false;
   for(int arg = 1; arg < argc; arg++) {
     std::string strval = std::string(argv[arg]);
-    if (!strval.compare("-p")) {
+    if(!strval.compare("-h") || !strval.compare("--help")){
+      PrintUsageString(argv);
+      exit(1);
+    } else if (!strval.compare("-p")) {
       input_ftype = 3; // stdout
       pipeflag = true;
     } else if (!strval.compare("-c")){
