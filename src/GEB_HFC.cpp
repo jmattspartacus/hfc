@@ -560,7 +560,7 @@ int main(int argc, char** argv) {
     {1, 0}, {8, 0}, {19, 0}
   };
   while (in.read(&aGeb, sizeof(gebData)) && !gotsignal) {
-    if(aGeb.type < 1 || aGeb.type > 50 || aGeb.length > 8192){
+    if(!pipeflag && (aGeb.type < 1 || aGeb.type > 50 || aGeb.length > 8192)){
       std::cout << "bad evt with type " << aGeb.type << " length: " << aGeb.length << std::endl; 
       badevt++;
       continue;
