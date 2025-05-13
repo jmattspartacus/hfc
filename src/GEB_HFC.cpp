@@ -19,7 +19,14 @@
 
 #define SQR(x)         ((x)*(x))
 
-using namespace std;
+// real time length of the clock ticks in GRETINA
+const double CLOCK_TICK_IN_SECONDS = 1e-8;
+
+// The default width needs to be something 
+// long enough that it'd have to be a 
+// processing issue for it to be out of place
+const double DEFAULT_TIME_WINDOW = 3.0;
+
 // decomposed mode 1 data is type 3
 // mode 1 is the more complex tracked data
 const int GEB_MODE_1_DECOMP=3;
@@ -338,14 +345,14 @@ void CropGeb(HFC_item *evt){
   if (evt->geb.type == GEB_MODE_2_DECOMP){
     int num_int_pts = *reinterpret_cast<int *>((char *)evt->data + 8);
     //std::cout << "Num int pts " << num_int_pts << std::endl;
-    size_t new_payload_length = + num_int_pts * GEB_MODE_2_INTPT_SIZE_BYTES;
+    size_t new_payload_length =  GEB_MODE_2_SIZE_BEFORE_INTPT + (std::min(16, num_int_pts) * GEB_MODE_2_INTPT_SIZE_BYTES);
     // chop off everything after the payload that's there
     evt->data = (BYTE *)realloc(evt->data, new_payload_length);
     evt->geb.length = new_payload_length;
   } else if (evt->geb.type == GEB_MODE_1_DECOMP){
     int num_det = *reinterpret_cast<int *>((char *)evt->data + 4);
     //std::cout << "Num det " << num_det << std::endl;
-    size_t new_payload_length = num_det * GEB_MODE_1_INTPT_SIZE_BYTES;
+    size_t new_payload_length = GEB_MODE_1_SIZE_BEFORE_INTPT + (std::min(30, num_det) * GEB_MODE_1_INTPT_SIZE_BYTES);
     // chop off everything after the payload that's there
     evt->data = (BYTE *)realloc(evt->data, new_payload_length);
     evt->geb.length = new_payload_length;
@@ -361,12 +368,35 @@ int main(int argc, char** argv) {
   signal(SIGPIPE, breakhandler);
 
   if(argc==1) {
-    std::cerr << argv[0] << " <flag: -p (pipeout) or -z (.gz input file)> <Input file>" << endl
-   << "brings GRETINA Mode3 event file" << endl
-   << "in proper sequence" << endl;
+    std::cerr << "Usage: " << argv[0] << " [-o outputfile.dat[.gz or .bz] [-c] [-t time window in seconds ] inputfile.dat[.gz or .bz]]" << std::endl
+    << "time sorts GEB event built files" << std::endl
+    << "\t-c flag: GRETINA events will be cropped to remove zero padding" << std::endl
+    << "\t-t arg: must be a positive number, ex [ -t 1.01 ]" << std::endl
+    << "\t-o arg: must be a file with the .dat, .dat.gz or .dat.bz extensions" << std::endl;
     exit(0);
   }
-  
+  std::unordered_map<int, std::string> type_to_str = {
+    {1,  "Decomposed Gretina Data"},
+    {2,  "Raw Gretina Data"},
+    {3,  "Tracked Gretina Data"},
+    {4,  "BGS Raw Gretina Data"},
+    {5,  "S800 Raw Data"},
+    {6,  "NSCL Non Event Data"},
+    {7,  "Gretina Scaler Data"},
+    {8,  "Bank 29 Raw Data"},
+    {9,  "S800 processed data"},
+    {10, "Timestamped NSCL Non event data"},
+    {11, "Gretina GEANT 4 simulation Data"},
+    {12, "Chico raw data"},
+    {13, "Superstitious Mystery Data"},
+    {14, "Digital Gammasphere Data"},
+    {15, "Digital Gammasphere Trigger Data"},
+    {16, "Digital FMA Data"},
+    {17, "Phoswich Wall"},
+    {18, "Phoswich Wall Auxilliary"},
+    {19, "GODDESSS"},
+  };
+  std::vector<int> types_seen(51);
   bool pipeflag = false;
   bool zipflag = false;
   bool bzipflag = false;
@@ -376,24 +406,29 @@ int main(int argc, char** argv) {
   string filename = "NONE";
   string outfname = "HFC.dat";
   int input_ftype = 0;
+  // how far separated in time the latest 
+  // events can be before we dump them to disk
+  double time_window = DEFAULT_TIME_WINDOW;
   bool crop_geb = false;
   for(int arg = 1; arg < argc; arg++) {
     std::string strval = std::string(argv[arg]);
     if (!strval.compare("-p")) {
       input_ftype = 3; // stdout
       pipeflag = true;
-    } else if (!strval.compare("-z")) {
-      input_ftype = 
-      zipflag = true;
-    } else if (!strval.compare("-bz")) {
-      bzipflag = true;
     } else if (!strval.compare("-c")){
       crop_geb = true;
+    } else if (!strval.compare("-t")){
+      arg++;
+      if(arg >= argc){ break;}
+      try{
+        time_window = std::stod(argv[arg]);
+      } catch(std::exception &e){
+        std::cout << "Failed to parse '" << argv[arg] << "' as a double, using default window of " << DEFAULT_TIME_WINDOW  << "s" << std::endl;
+        time_window = DEFAULT_TIME_WINDOW;
+      }
     } else if (!strval.compare("-o")) {
       arg++;
-      if(arg >= argc){
-        break;
-      }
+      if(arg >= argc){ break; }
       outfname = argv[arg];
       std::cout << "Using output: " << outfname << std::endl;
     } else if (!filename.compare("NONE")) {
@@ -406,6 +441,7 @@ int main(int argc, char** argv) {
   if(crop_geb){
     std::cout << "Cropping geb events!" << std::endl;
   }
+  std::cout << "Using Time window " << time_window  << "s" << std::endl;
   int outf_type = 0;
   int inf_type = 0;
   // handling the extension here instead of from the argument flags
@@ -451,9 +487,23 @@ int main(int argc, char** argv) {
   std::priority_queue<HFC_item *, std::vector<HFC_item *>, MinHeapSortHFCptr> pq;
   bool success=true;
   unsigned long long badevt = 0;
+  
+  double t_timestamp_in_seconds;
+  double last_write_in_seconds;
+  bool none_written = true;
+  double first_timestamp = -1e20;
+  
   long long last_written_timestamp = 0;
+  int       last_written_type = 0;
   unsigned long long timestamps_out_of_order = 0;
   unsigned long long total_written = 0;
+  unsigned long long type_19_ooo = 0;
+  double tdiff = 0;
+  unsigned long long max_write_queue_size = 10000000;
+  float write_fraction = 0.1;
+  std::unordered_map<int, unsigned long long> by_type{
+    {1, 0}, {8, 0}, {19, 0}
+  };
   while (in.read(&aGeb, sizeof(gebData)) && !gotsignal) {
     if(aGeb.type < 1 || aGeb.type > 50 || aGeb.length > 8192){
       std::cout << "bad evt with type " << aGeb.type << " length: " << aGeb.length << std::endl; 
@@ -461,16 +511,36 @@ int main(int argc, char** argv) {
       continue;
     }
     read = in.read(cBuf, aGeb.length);
+    types_seen[aGeb.type] = types_seen[aGeb.type]+1;
+    if(aGeb.type == 13){continue;}
     if(aGeb.timestamp < last_written_timestamp){
       timestamps_out_of_order++;
+      if(aGeb.type == 19){
+        type_19_ooo++;
+      }
     }
+    // ORRUBA gets bad timestamps some fraction of the time
+    if(aGeb.type != 19 && aGeb.type != 8){
+      // if we're horribly out of order, we don't want to
+      // write out prematurely
+      if(!none_written){
+        tdiff = aGeb.timestamp * CLOCK_TICK_IN_SECONDS - last_write_in_seconds;
+      } else if (first_timestamp < -1e10) {
+        first_timestamp = aGeb.timestamp * CLOCK_TICK_IN_SECONDS;
+      } else {
+        // might have issues if the first time stamp is bad
+        tdiff = aGeb.timestamp * CLOCK_TICK_IN_SECONDS - first_timestamp;
+      }
+    }
+    
+
     
     totread += read + sizeof(struct gebData);
     if (read != aGeb.length) {
       if (!pipeflag) {
         std::cerr << aGeb.length << " bytes expected but"
-             << read << " bytes read. Bailing out"
-             << endl;
+        << read << " bytes read. Bailing out"
+        << std::endl;
         std::cerr.flush();
       }
       break;
@@ -478,10 +548,14 @@ int main(int argc, char** argv) {
     EvtCount++;
     if((EvtCount % 20000)==0 && !pipeflag) {
       std::cerr << "Event " << EvtCount
-        << " read:" << read
-        << " total read:" << totread/1000000
-        << " Mb " 
-        << " Bad events: " << badevt << "\r";
+      << " total read:" << totread/1000000 << " Mb " 
+      << " Out of order: " << timestamps_out_of_order 
+      << " tdiff: " << tdiff << "s " 
+      << " pqlen: " << pq.size();
+      for(const auto &i : by_type){
+        std::cerr << " {" << i.first << ", " << (double)i.second / (double)pq.size() << "} ";
+      }
+      std::cerr << "\r";
       std::cerr.flush();
     }
     HFC_item* hfc;
@@ -495,21 +569,45 @@ int main(int argc, char** argv) {
       CropGeb(hfc);
     }
     waiting_writes += (hfc->geb.length) + 16;
+    by_type[hfc->geb.type] += 1;
     pq.push(hfc);
+    if( waiting_writes < max_write_queue_size ){ continue; }
+    if(tdiff < time_window * 0.8){
+      max_write_queue_size *= 1.5;
+      // keep the write queue from going above 2GB
+      max_write_queue_size = std::min(2000000000ull, max_write_queue_size);
+      continue;
+    }
 
-    // flush the first 99MB of data
-    if(waiting_writes > 100000000){
-      while(waiting_writes > 1000000){
-        HFC_item *item = pq.top();
-        pq.pop();
-        waiting_writes -= (item->geb.length) + 16;
-        total_written  += (item->geb.length) + 16;
-        out.write(&(item->geb), sizeof(gebData));
-        out.write(item->data, item->geb.length);
+    size_t start_size = pq.size() / 2;
+    none_written = false;
+    long num_writes = 0;
+    unsigned long long stop_thresh = (unsigned long long)((1.0 - write_fraction) * max_write_queue_size);
+    if(tdiff > time_window * 2.0){
+      max_write_queue_size /= 1.5;
+      // keep the write queue from going below 10MB
+      max_write_queue_size = std::max(10000000ull, max_write_queue_size);
+    }
+    while(waiting_writes > stop_thresh){
+      HFC_item *item = pq.top();
+      pq.pop();
+      waiting_writes -= (item->geb.length) + 16;
+      total_written  += (item->geb.length) + 16;
+      out.write(&(item->geb), sizeof(gebData));
+      out.write(item->data, item->geb.length);
+      by_type[item->geb.type] -= 1;
+      if(item->geb.type != 19 && item->geb.type != 8){
         last_written_timestamp = item->geb.timestamp;
-        delete item->data;
-        delete item;
+        last_written_type = item->geb.type;
+        last_write_in_seconds  = last_written_timestamp * CLOCK_TICK_IN_SECONDS;
+        if(none_written)
+        tdiff = last_write_in_seconds - t_timestamp_in_seconds;
       }
+      delete item->data;
+      delete item;
+      //std::cout << last_write_in_seconds << std::endl;
+      num_writes++;
+      none_written = false;
     }
 
 
@@ -756,10 +854,20 @@ int main(int argc, char** argv) {
   }
   in.close();
   out.close();
+
   if (!pipeflag) {
+      for(int i = 0; i < types_seen.size(); i++){
+    if(types_seen[i] == 0){continue;}
+    if(type_to_str.find(i) == type_to_str.end()){
+      std::cout << "Saw " << types_seen[i] << " type " << i << " unknown type event!" << std::endl;
+    } else {
+      std::cout << "Saw " << types_seen[i] << " type " << i << " " << type_to_str.at(i) << " events!" << std::endl;
+    }
+  }
     std::cerr << "HFC: done" << endl; std::cerr.flush(); 
     if(timestamps_out_of_order > 0){
       std::cout << "Out of order timestamps: " << timestamps_out_of_order << " of " << EvtCount << std::endl;
+      std::cout << "Type 19 out of order: " << type_19_ooo << std::endl;
     }
     double space_ratio = 1.0 - ((double)(total_written) / (double)(totread));
     if(crop_geb){
