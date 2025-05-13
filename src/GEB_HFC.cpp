@@ -516,7 +516,16 @@ int main(int argc, char** argv) {
   in.open(filename,inf_type,"rb");
   // if it's piped, it ignores the other info
   out.open(outfname,outf_type,"wb");
-  if(!out.m_is_open || !in.m_is_open){
+  if(!in.m_is_open){
+    if(!pipeflag){
+      std::cerr << "Failed to open input file!" << std::endl;
+    }
+    exit(1);
+  }
+  if(!out.m_is_open){
+    if(!pipeflag){
+      std::cerr << "Failed to open output file!" << std::endl;
+    }
     exit(1);
   }
   long long totread = 0;
