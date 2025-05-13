@@ -453,19 +453,58 @@ int main(int argc, char** argv) {
   int inf_type = 0;
   // handling the extension here instead of from the argument flags
   size_t  outf_extension_pos = outfname.rfind(".");
+  if(outf_extension_pos == outfname.npos){
+    if(!pipeflag){
+      std::cerr << "Failed to extract file extension from output file name '" << outfname << "'" << std::endl;
+  if(inf_extension_pos == filename.npos){
+    if(!pipeflag){
+      std::cerr << "Failed to extract file extension from input file name '" << filename << "'" << std::endl;
+    }
+    exit(1);
+  }
+    }
+    exit(1);
+  }
   std::string outf_extension = outfname.substr(outf_extension_pos);
   
   size_t  inf_extension_pos = filename.rfind(".");
+  if(inf_extension_pos == filename.npos){
+    if(!pipeflag){
+      std::cerr << "Failed to extract file extension from input file name '" << filename << "'" << std::endl;
+    }
+    exit(1);
+  }
   std::string inf_extension = filename.substr(inf_extension_pos);
   
+  std::vector<std::string> allowed_file_extensions = {
+    ".dat", ".dat.bz", ".dat.gz"
+  };
   std::unordered_map<std::string, int> extension_to_ftype = {
-    {".gz", 1}, {".bz", 2} 
+    {".dat", 0}, {".gz", 1}, {".bz", 2}
   };
   if(extension_to_ftype.find(outf_extension) != extension_to_ftype.end()){
     outf_type = extension_to_ftype.at(outf_extension);
+  } else {
+    if(!pipeflag){
+      std::cerr << "Output file extension not allowed! Allowed extensions are:" << std::endl;
+      for(const auto &i: allowed_file_extensions){
+        std::cerr << i<< " ";
+      }
+      std::cerr << std::endl;
+    }
+    exit(1);
   }
   if(extension_to_ftype.find(inf_extension) != extension_to_ftype.end()){
     inf_type = extension_to_ftype.at(inf_extension);
+  } else {
+    if(!pipeflag){
+      std::cerr << "Input file extension not allowed! Allowed extensions are:" << std::endl;
+      for(const auto &i: allowed_file_extensions){
+        std::cerr << i << " ";
+      }
+      std::cerr << std::endl;
+    }
+    exit(1);
   }
   // pipe to stdout
   if(pipeflag){ 
