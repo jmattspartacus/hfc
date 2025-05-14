@@ -12,12 +12,24 @@ This program currently will not compile on Windows, I would suggest using WSL if
 
 # Difference with historic HFC program
 
-The version here uses a priority queue instead of a linked list. While it will use somewhat more memory, it runs about 3 times faster for large input files. 
+Filetypes for input and output are now deduced for input and output (see [Flags Added](#Flags-added)) and bad filetypes will cause early exit.
+
+The version here uses a priority queue instead of a linked list. While it will use somewhat more memory, it runs about 3 times faster for large input files. The increase in performance can become more substantial for very pathological files.
 
 For "very old" timestamps, these will now be located at the end of the output file. They are no longer discarded as they were with the old output files.
 
+## Flags added
+
+* Event cropping: the `-c` flag enables event cropping, which removes zero padding at the end of mode 1 and mode 2 (types 1 and 3 respectively) decomposed data due to empty interaction points.
+* Time windowing: the `-t` flag allows to configure the minimum window length in seconds (defaulted to 3 seconds) between the timestamp of the most next event write and the most recently read event. (Ex `-t 10.0`)
+* Output Path: the `-o` flag allows specifying the name and path of the output file. (Ex `-o path/to/myfiles.dat.gz`)
+
+## Flags Deprecated
+
+* Compression flags: `-bz` and `-z` are deprecated, as the filetypes are now deduced from the file extensions of the input and output files.
+
 # Disclaimer
 
-I make no claim to ownership of this code, but if something here is broken, I am willing to maintain it. 
+I make no claim to ownership of this code, but if something here is broken, I am willing to maintain it. Updates and feature additions may be made from time to time as needed by myself or collaborators.
 
 From what I can tell, the original version comes from here https://github.com/GRETINA-LBNL/gretina-unpack 
