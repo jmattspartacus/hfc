@@ -10,7 +10,7 @@ To build HFC, run `make`, aside from C++ development tools, development headers 
 
 This program currently will not compile on Windows, I would suggest using WSL if you cannot use a Unix/Linux based operating system. 
 
-# Difference with historic HFC program
+# Differences with historic HFC program
 
 Filetypes for input and output are now deduced for input and output (see [Flags Added](#Flags-added)) and bad filetypes will cause early exit.
 
@@ -33,3 +33,7 @@ For "very old" timestamps, these will now be located at the end of the output fi
 I make no claim to ownership of this code, but if something here is broken, I am willing to maintain it. Updates and feature additions may be made from time to time as needed by myself or collaborators.
 
 From what I can tell, the original version comes from here https://github.com/GRETINA-LBNL/gretina-unpack 
+
+# Funding Acknowledgement
+
+This work is supported in part by the U.S. Department of Energy, Office of Science, Office of Workforce Development for Teachers and Scientists, Office of Science Graduate Student Research (SCGSR) program. The SCGSR program is administered by the Oak Ridge Institute for Science and Education (ORISE) for the DOE. ORISE is managed by ORAU under contract number DE- SC0014664. All opinions expressed in herein are the author’s and do not necessarily reflect the policies and views of DOE, ORAU, or ORISE.
